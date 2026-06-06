@@ -1,0 +1,23 @@
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# Logs and temp output
+*.log
+/tmp/
+ollama-*.log
+
+# Qwen Code local state (should never be committed)
+.qwen/
+settings.json
+settings.json.bak.*
+.env
+
+# Backups
+*.bak
+*.bak.*
