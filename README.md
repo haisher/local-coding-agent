@@ -119,6 +119,55 @@ Platform-specific quick starts:
 - 🐧 **Linux** → [`linux/README.md`](linux/README.md)
 - 🪟 **Windows** → [`windows/README.md`](windows/README.md)
 
+## MCP servers
+
+[MCP (Model Context Protocol)](https://modelcontextprotocol.io) servers extend
+what the agent can do. The setup scripts wire in two fully local servers
+automatically, and one optional cloud server for web search.
+
+### git — structured repository access
+
+Powered by [`mcp-server-git`](https://github.com/modelcontextprotocol/servers/tree/main/src/git)
+(run via `uvx`, installed by `setup`). Exposes structured git operations that
+are more reliable than parsing raw shell output:
+
+`git_status` · `git_diff` · `git_diff_staged` · `git_log` · `git_commit` ·
+`git_add` · `git_branch` · `git_checkout` · `git_create_branch` · `git_show`
+
+No configuration needed. Runs entirely on `localhost`.
+
+### memory — persistent knowledge graph
+
+Powered by [`@modelcontextprotocol/server-memory`](https://github.com/modelcontextprotocol/servers/tree/main/src/memory)
+(run via `npx`). Stores entities, relations, and observations in
+`~/.qwen/mcp-memory.jsonl` and exposes them as queryable tools, giving the
+agent a structured long-term memory that survives across sessions.
+
+No configuration needed. Runs entirely on `localhost`.
+
+### Tavily web search (optional, disabled by default)
+
+When enabled, the agent can search the web for documentation, error messages,
+or release notes via [Tavily](https://app.tavily.com).
+
+**Enabling:** open the platform setup script, set the two variables, then
+re-run `setup`:
+
+| Platform | Script | Enable flag | API key variable |
+|---|---|---|---|
+| 🍎 macOS | `macos/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
+| 🐧 Linux | `linux/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
+| 🪟 Windows | `windows/setup.ps1` | `$EnableWebSearch = $true` | `$TavilyApiKey = 'tvly-...'` |
+
+Get a free key at <https://app.tavily.com> (1 000 searches/month on the free
+tier). The key is stored in `~/.qwen/.env`, not in `settings.json`.
+
+**Privacy:** web search is the only feature that sends data outside
+`localhost`. When the agent calls `tavily_search`, the query is sent to
+Tavily's API (`api.tavily.com`). All other tool calls — including git and
+memory — stay on your machine. Disable at any time by setting
+`ENABLE_WEB_SEARCH="0"` / `$EnableWebSearch = $false` and re-running `setup`.
+
 ## Editor integration (optional)
 
 Prefer working inside your editor instead of the terminal? Install the official
@@ -143,8 +192,14 @@ your local `~/.qwen/settings.json`, inference still stays entirely on
 - Enough disk for Ollama plus the selected models (a clean macOS model set needs
   ~110 GB; the RTX profiles are much smaller)
 
+`setup` installs all runtime dependencies automatically, including Node.js,
+Qwen Code, `jq`, and `uv` (for `mcp-server-git`).
+
 ## Privacy
 
 After installation and model downloads, prompts, code, tool calls, and
-inference all stay on your machine via Ollama's local API. Qwen Code usage
-statistics are disabled in the generated settings.
+inference all stay on your machine via Ollama's local API. The two built-in MCP
+servers (`mcp-server-git`, `server-memory`) are local processes — no data
+leaves `localhost`. Qwen Code usage statistics are disabled in the generated
+settings. The only exception is the optional Tavily web search feature; see
+[Tavily web search](#tavily-web-search-optional-disabled-by-default) above.

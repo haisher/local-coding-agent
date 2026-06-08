@@ -83,6 +83,25 @@ In Alpaca's preferences, add an Ollama instance pointing at
 `http://localhost:11434` to use the local models and GPU tuning. Enable
 "Run in Background" for tray-like behavior.
 
+## Web search (optional)
+
+Web search is disabled by default. To enable it:
+
+1. Get a free Tavily API key at <https://app.tavily.com> (1 000 searches/month).
+2. Open `setup.sh` and edit the two variables near the top:
+   ```bash
+   ENABLE_WEB_SEARCH="1"
+   TAVILY_API_KEY="tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+   ```
+3. Re-run `./linux/setup.sh`.
+
+The key is stored in `~/.qwen/.env` (chmod 600). `settings.json` uses a
+`${TAVILY_API_KEY}` placeholder that Qwen Code resolves at runtime.
+
+**Privacy:** when the agent invokes `tavily_search`, that query is sent to
+Tavily's API (`api.tavily.com`). Everything else — model inference, code, file
+contents — stays on `localhost`.
+
 ## Requirements
 
 - Linux (Debian/Ubuntu; the driver installer targets Debian 13 / Trixie)

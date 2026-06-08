@@ -70,6 +70,25 @@ To wipe all local models and start over:
   supervises and would otherwise immediately respawn the server.
 - The scripts target stock macOS bash 3.2 (no `mapfile`).
 
+## Web search (optional)
+
+Web search is disabled by default. To enable it:
+
+1. Get a free Tavily API key at <https://app.tavily.com> (1 000 searches/month).
+2. Open `setup.sh` and edit the two variables near the top:
+   ```bash
+   ENABLE_WEB_SEARCH="1"
+   TAVILY_API_KEY="tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+   ```
+3. Re-run `./setup.sh`.
+
+The key is stored in `~/.qwen/.env` (chmod 600). `settings.json` uses a
+`${TAVILY_API_KEY}` placeholder that Qwen Code resolves at runtime.
+
+**Privacy:** when the agent invokes `tavily_search`, that query is sent to
+Tavily's API (`api.tavily.com`). Everything else — model inference, code, file
+contents — stays on `localhost`.
+
 ## Requirements
 
 - macOS on Apple Silicon (arm64 recommended)

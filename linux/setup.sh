@@ -59,6 +59,17 @@ GENERAL_TUNED_NAME="general"
 INSTALL_QWEN_CODE="1"
 TUNED_NAME="qcoder"
 
+# Optional: web search via Tavily MCP (disabled by default).
+# 1. Get a free API key at https://app.tavily.com (1 000 searches/month).
+# 2. Set ENABLE_WEB_SEARCH="1" and paste your key below.
+# 3. Re-run ./linux/setup.sh to apply.
+# Privacy: when the agent invokes tavily_search, the search query leaves your
+# machine and is sent to Tavily's API (api.tavily.com). Model inference, source
+# code, and all other tool calls stay on localhost. Disable at any time by
+# setting ENABLE_WEB_SEARCH="0" and re-running ./linux/setup.sh.
+ENABLE_WEB_SEARCH="0"
+TAVILY_API_KEY=""      # e.g. tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
 UPDATE_MODELS="0"          # re-pull model tags even if present
 MAX_SETTINGS_BACKUPS="10"  # cap settings.json backups
 
@@ -245,6 +256,13 @@ if [[ "$INSTALL_QWEN_CODE" == "1" ]]; then
     fi
   fi
 
+  # uv is required at runtime to launch mcp-server-git.
+  if ! command -v uvx >/dev/null 2>&1; then
+    log "Installing uv (for mcp-server-git)..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+
   QWEN_DIR="$HOME/.qwen"
   QWEN_SETTINGS="$QWEN_DIR/settings.json"
   mkdir -p "$QWEN_DIR"
@@ -295,11 +313,29 @@ EOF
   FAST_MODEL_LINE=""
   [[ "$INSTALL_FAST_MODEL" == "1" ]] && FAST_MODEL_LINE="  \"fastModel\": \"$FAST_TUNED_NAME\","
 
+  # --- MCP servers: git and memory are always included; Tavily is optional ---
+  MEMORY_FILE_PATH="$HOME/.qwen/mcp-memory.jsonl"
+  MCP_SERVERS_JSON="$(jq -n --arg mem "$MEMORY_FILE_PATH" '{
+    "git":    {"command": "uvx", "args": ["mcp-server-git"]},
+    "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"],
+               "env": {"MEMORY_FILE_PATH": $mem}}
+  }')"
+
+  if [[ "$ENABLE_WEB_SEARCH" == "1" ]]; then
+    [[ -z "$TAVILY_API_KEY" ]] && fail "ENABLE_WEB_SEARCH is 1 but TAVILY_API_KEY is empty. Paste your key in the config section."
+    MCP_SERVERS_JSON="$(echo "$MCP_SERVERS_JSON" | jq '. + {
+      "tavily": {"httpUrl": "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"}
+    }')"
+    log "Web search: Tavily MCP will be configured in settings.json."
+  fi
+  log "MCP servers configured: git (uvx), memory (npx)${ENABLE_WEB_SEARCH:+, tavily (http)}"
+
   # Build only the keys this setup owns, then merge into any existing settings
   # so MCP servers, hooks, and unrelated OpenAI providers are preserved.
   OWNED_SETTINGS="$TMP_DIR/owned-settings.json"
   cat >"$OWNED_SETTINGS" <<EOF
 {
+  "mcpServers": $MCP_SERVERS_JSON,
   "modelProviders": {
     "openai": [
 $PROVIDER_ENTRIES
@@ -325,13 +361,17 @@ $FAST_MODEL_LINE
     "enableManagedAutoDream": true
   },
   "tools": {
-    "approvalMode": "auto-edit"
+    "approvalMode": "auto-edit",
+    "shell": {
+      "enableInteractiveShell": true,
+      "showColor": true
+    }
   },
   "privacy": {
     "usageStatisticsEnabled": false
   },
   "ui": {
-    "shellOutputMaxLines": 200
+    "shellOutputMaxLines": 300
   }
 }
 EOF
@@ -381,6 +421,14 @@ EOF
   if ! grep -q '^OLLAMA_API_KEY=' "$QWEN_ENV" 2>/dev/null; then
     echo 'OLLAMA_API_KEY=ollama' >> "$QWEN_ENV"
     log "Wrote OLLAMA_API_KEY to $QWEN_ENV"
+  fi
+
+  if [[ "$ENABLE_WEB_SEARCH" == "1" ]]; then
+    # Remove any existing entry, then append the (possibly updated) key.
+    grep -v '^TAVILY_API_KEY=' "$QWEN_ENV" > "$TMP_DIR/env-stripped" 2>/dev/null || true
+    cat "$TMP_DIR/env-stripped" > "$QWEN_ENV"
+    echo "TAVILY_API_KEY=$TAVILY_API_KEY" >> "$QWEN_ENV"
+    log "Wrote TAVILY_API_KEY to $QWEN_ENV"
   fi
 fi
 

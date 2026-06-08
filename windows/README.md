@@ -139,6 +139,25 @@ $DefaultModel = 'general'
 $AvailableModels = @('general')
 ```
 
+## Web search (optional)
+
+Web search is disabled by default. To enable it:
+
+1. Get a free Tavily API key at <https://app.tavily.com> (1,000 searches/month).
+2. Open `setup.ps1` and edit the two variables near the top:
+   ```powershell
+   $EnableWebSearch = $true
+   $TavilyApiKey = 'tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+   ```
+3. Re-run `.\setup.ps1`.
+
+The key is stored in `%USERPROFILE%\.qwen\.env`. `settings.json` uses a
+`${TAVILY_API_KEY}` placeholder that Qwen Code resolves at runtime.
+
+**Privacy:** when the agent invokes `tavily_search`, that query is sent to
+Tavily's API (`api.tavily.com`). Everything else — model inference, code, file
+contents — stays on `localhost`.
+
 ## setup.ps1
 
 Run:

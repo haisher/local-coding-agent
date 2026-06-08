@@ -54,6 +54,17 @@ $UpdateModels = $false
 $MaxSettingsBackups = 10
 $IgnoreOllamaCodeIntegrityBlock = $false
 
+# Optional: web search via Tavily MCP (disabled by default).
+# 1. Get a free API key at https://app.tavily.com (1,000 searches/month).
+# 2. Set $EnableWebSearch = $true and paste your key below.
+# 3. Re-run .\setup.ps1 to apply.
+# Privacy: when the agent invokes tavily_search, the search query leaves your
+# machine and is sent to Tavily's API (api.tavily.com). Model inference, source
+# code, and all other tool calls stay on localhost. Disable at any time by
+# setting $EnableWebSearch = $false and re-running .\setup.ps1.
+$EnableWebSearch = $false
+$TavilyApiKey = ''     # e.g. tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+
 $ApiUrl = 'http://127.0.0.1:11434'
 $OpenAiUrl = 'http://127.0.0.1:11434/v1/chat/completions'
 
@@ -392,13 +403,39 @@ function Configure-QwenCode {
             checkpointing = [ordered]@{ enabled = $true }
         }
         memory = [ordered]@{ enableManagedAutoDream = $true }
-        tools = [ordered]@{ approvalMode = 'auto-edit' }
+        tools = [ordered]@{
+            approvalMode = 'auto-edit'
+            shell = [ordered]@{
+                enableInteractiveShell = $true
+                showColor = $true
+            }
+        }
         privacy = [ordered]@{ usageStatisticsEnabled = $false }
-        ui = [ordered]@{ shellOutputMaxLines = 200 }
+        ui = [ordered]@{ shellOutputMaxLines = 300 }
     }
     if ($InstallFastModel) {
         $owned['fastModel'] = $FastTunedName
     }
+
+    # git and memory MCP servers are always configured; Tavily is added when enabled.
+    $memoryFilePath = Join-Path $HOME '.qwen\mcp-memory.jsonl'
+    $mcpServers = [ordered]@{
+        git    = [ordered]@{
+            command = 'uvx'
+            args    = @('mcp-server-git')
+        }
+        memory = [ordered]@{
+            command = 'cmd'
+            args    = @('/c', 'npx', '-y', '@modelcontextprotocol/server-memory')
+            env     = [ordered]@{ MEMORY_FILE_PATH = $memoryFilePath }
+        }
+    }
+    if ($EnableWebSearch) {
+        $mcpServers['tavily'] = [ordered]@{
+            httpUrl = "https://mcp.tavily.com/mcp/?tavilyApiKey=`${TAVILY_API_KEY}"
+        }
+    }
+    $owned['mcpServers'] = $mcpServers
 
     $existing = [ordered]@{}
     if (Test-Path -LiteralPath $settingsPath) {
@@ -440,6 +477,15 @@ function Configure-QwenCode {
     if (-not ($envLines | Where-Object { $_ -match '^OLLAMA_API_KEY=' })) {
         Add-Content -LiteralPath $envPath -Value 'OLLAMA_API_KEY=ollama' -Encoding ASCII
         Write-Log "Wrote OLLAMA_API_KEY to $envPath"
+    }
+
+    if ($EnableWebSearch) {
+        # Remove any existing entry, then append the (possibly updated) key.
+        $envLines = @(Get-Content -LiteralPath $envPath -ErrorAction SilentlyContinue) |
+            Where-Object { $_ -notmatch '^TAVILY_API_KEY=' }
+        [IO.File]::WriteAllLines($envPath, $envLines, [Text.UTF8Encoding]::new($false))
+        Add-Content -LiteralPath $envPath -Value "TAVILY_API_KEY=$TavilyApiKey" -Encoding ASCII
+        Write-Log "Wrote TAVILY_API_KEY to $envPath"
     }
 }
 
@@ -485,6 +531,9 @@ Write-Log 'This setup expects Windows 11, internet access, winget, and permissio
 if (-not (Get-DefaultTunedModel)) {
     throw 'At least one model install flag must be enabled.'
 }
+if ($EnableWebSearch -and [string]::IsNullOrWhiteSpace($TavilyApiKey)) {
+    throw 'EnableWebSearch is $true but TavilyApiKey is empty. Paste your key in the config section.'
+}
 $script:TempDir = Join-Path ([IO.Path]::GetTempPath()) "setup-windows-$([Guid]::NewGuid().ToString('N'))"
 New-Item -ItemType Directory -Path $script:TempDir | Out-Null
 
@@ -529,6 +578,11 @@ try {
                 throw 'npm failed to install Qwen Code CLI.'
             }
             Refresh-Path
+        }
+
+        # uv is required at runtime to launch mcp-server-git.
+        if (-not (Test-Command 'uvx')) {
+            Install-WingetPackage 'astral-sh.uv' 'uv'
         }
     }
 
