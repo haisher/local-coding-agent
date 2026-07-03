@@ -112,7 +112,7 @@ try {
         Preload-Model $DefaultModel
     }
 
-    Write-Log 'Ready. Use qwen in your project.'
+    Write-Log 'Ready. Use opencode in your project.'
     Write-Log "Models: $($AvailableModels -join ', ')"
 }
 catch {

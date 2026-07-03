@@ -47,11 +47,10 @@ $GeneralRepeatPenalty = 1.0
 $GeneralPresencePenalty = 1.5
 $GeneralTunedName = 'general'
 
-$InstallQwenCode = $true
+$InstallOpenCode = $true
 $TunedName = 'qcoder'
 
 $UpdateModels = $false
-$MaxSettingsBackups = 10
 $IgnoreOllamaCodeIntegrityBlock = $false
 
 # Optional: web search via Tavily MCP (disabled by default).
@@ -273,77 +272,13 @@ function New-TunedModel {
     Write-Log "Prepared model alias: $Tuned"
 }
 
-function ConvertTo-Hashtable {
-    param([Parameter(ValueFromPipeline = $true)]$InputObject)
-
-    process {
-        if ($null -eq $InputObject) {
-            return $null
-        }
-        if ($InputObject -is [Collections.IDictionary]) {
-            $result = [ordered]@{}
-            foreach ($key in $InputObject.Keys) {
-                $result[$key] = ConvertTo-Hashtable $InputObject[$key]
-            }
-            return $result
-        }
-        if ($InputObject -is [Management.Automation.PSCustomObject]) {
-            $result = [ordered]@{}
-            foreach ($property in $InputObject.PSObject.Properties) {
-                $result[$property.Name] = ConvertTo-Hashtable $property.Value
-            }
-            return $result
-        }
-        if ($InputObject -is [Collections.IEnumerable] -and $InputObject -isnot [string]) {
-            return @($InputObject | ForEach-Object { ConvertTo-Hashtable $_ })
-        }
-        return $InputObject
-    }
-}
-
-function Merge-Hashtable {
-    param(
-        [Collections.IDictionary]$Existing,
-        [Collections.IDictionary]$Owned
-    )
-
-    $result = [ordered]@{}
-    foreach ($key in $Existing.Keys) {
-        $result[$key] = $Existing[$key]
-    }
-    foreach ($key in $Owned.Keys) {
-        if (
-            $result.Contains($key) -and
-            $result[$key] -is [Collections.IDictionary] -and
-            $Owned[$key] -is [Collections.IDictionary]
-        ) {
-            $result[$key] = Merge-Hashtable $result[$key] $Owned[$key]
-        }
-        else {
-            $result[$key] = $Owned[$key]
-        }
-    }
-    return $result
-}
-
-function New-ProviderEntry {
+function New-ModelEntry {
     param(
         [string]$Id,
-        [string]$BaseModel,
-        [int]$Context
+        [string]$Label
     )
 
-    return [ordered]@{
-        id = $Id
-        name = "$Id (local Ollama)"
-        baseUrl = 'http://127.0.0.1:11434/v1'
-        envKey = 'OLLAMA_API_KEY'
-        description = "$BaseModel served locally via Ollama"
-        generationConfig = [ordered]@{
-            contextWindowSize = $Context
-            timeout = 300000
-        }
-    }
+    return [ordered]@{ name = "$Id ($Label)" }
 }
 
 function Get-DefaultTunedModel {
@@ -354,140 +289,111 @@ function Get-DefaultTunedModel {
     return $null
 }
 
-function Backup-QwenSettings {
-    param([string]$SettingsPath, [string]$QwenDirectory)
+function Configure-OpenCode {
+    $openCodeDirectory = Join-Path $HOME '.config\opencode'
+    $configPath = Join-Path $openCodeDirectory 'opencode.json'
+    New-Item -ItemType Directory -Path $openCodeDirectory -Force | Out-Null
 
-    $timestamp = Get-Date -Format 'yyyyMMddHHmmssfff'
-    Copy-Item -LiteralPath $SettingsPath -Destination "$SettingsPath.bak.$timestamp"
-    Get-ChildItem -LiteralPath $QwenDirectory -Filter 'settings.json.bak.*' -File |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -Skip $MaxSettingsBackups |
-        Remove-Item -Force
-}
+    # This script is the sole owner of opencode.json (no manual-edit merging
+    # is needed/supported) — it is regenerated from the config variables
+    # above on every run, so re-running setup.ps1 is always idempotent and
+    # reproducible.
 
-function Configure-QwenCode {
-    $qwenDirectory = Join-Path $HOME '.qwen'
-    $settingsPath = Join-Path $qwenDirectory 'settings.json'
-    New-Item -ItemType Directory -Path $qwenDirectory -Force | Out-Null
-
-    $providers = [Collections.Generic.List[object]]::new()
-    $ownedIds = [Collections.Generic.List[string]]::new()
-
-    if ($InstallModel) {
-        $providers.Add((New-ProviderEntry $TunedName $Model $NumCtx))
-        $ownedIds.Add($TunedName)
-    }
+    # --- Provider: a single "ollama" custom OpenAI-compatible provider
+    # exposing every tuned local alias this setup creates. ---
+    $models = [ordered]@{}
+    $models[$TunedName] = New-ModelEntry $TunedName 'daily driver'
     if ($InstallAgenticModel) {
-        $providers.Add((New-ProviderEntry $AgenticTunedName $AgenticModel $AgenticNumCtx))
-        $ownedIds.Add($AgenticTunedName)
+        $models[$AgenticTunedName] = New-ModelEntry $AgenticTunedName 'tool calling'
     }
     if ($InstallGeneralModel) {
-        $providers.Add((New-ProviderEntry $GeneralTunedName $GeneralModel $GeneralNumCtx))
-        $ownedIds.Add($GeneralTunedName)
+        $models[$GeneralTunedName] = New-ModelEntry $GeneralTunedName 'general chat/reasoning'
     }
     if ($InstallFastModel) {
-        $providers.Add((New-ProviderEntry $FastTunedName $FastModel $FastNumCtx))
-        $ownedIds.Add($FastTunedName)
+        $models[$FastTunedName] = New-ModelEntry $FastTunedName 'fast/background'
     }
 
-    $defaultModel = Get-DefaultTunedModel
-    $owned = [ordered]@{
-        modelProviders = [ordered]@{ openai = @($providers) }
-        security = [ordered]@{ auth = [ordered]@{ selectedType = 'openai' } }
-        model = [ordered]@{
-            name = $defaultModel
-            skipLoopDetection = $false
-        }
-        general = [ordered]@{
-            showSessionRecap = $true
-            checkpointing = [ordered]@{ enabled = $true }
-        }
-        memory = [ordered]@{ enableManagedAutoDream = $true }
-        tools = [ordered]@{
-            approvalMode = 'auto-edit'
-            shell = [ordered]@{
-                enableInteractiveShell = $true
-                showColor = $true
-            }
-        }
-        privacy = [ordered]@{ usageStatisticsEnabled = $false }
-        ui = [ordered]@{ shellOutputMaxLines = 300 }
-    }
-    if ($InstallFastModel) {
-        $owned['fastModel'] = $FastTunedName
-    }
-
-    # git and memory MCP servers are always configured; Tavily is added when enabled.
-    $memoryFilePath = Join-Path $HOME '.qwen\mcp-memory.jsonl'
-    $mcpServers = [ordered]@{
+    # --- MCP servers: git and memory are always included; Tavily is optional ---
+    $memoryFilePath = Join-Path $openCodeDirectory 'mcp-memory.jsonl'
+    $mcp = [ordered]@{
         git    = [ordered]@{
-            command = 'uvx'
-            args    = @('mcp-server-git')
+            type    = 'local'
+            command = @('uvx', 'mcp-server-git')
+            enabled = $true
         }
         memory = [ordered]@{
-            command = 'cmd'
-            args    = @('/c', 'npx', '-y', '@modelcontextprotocol/server-memory')
-            env     = [ordered]@{ MEMORY_FILE_PATH = $memoryFilePath }
+            type        = 'local'
+            command     = @('npx', '-y', '@modelcontextprotocol/server-memory')
+            environment = [ordered]@{ MEMORY_FILE_PATH = $memoryFilePath }
+            enabled     = $true
         }
     }
     if ($EnableWebSearch) {
-        $mcpServers['tavily'] = [ordered]@{
-            httpUrl = "https://mcp.tavily.com/mcp/?tavilyApiKey=`${TAVILY_API_KEY}"
+        $mcp['tavily'] = [ordered]@{
+            type    = 'remote'
+            url     = "https://mcp.tavily.com/mcp/?tavilyApiKey=$TavilyApiKey"
+            enabled = $true
+        }
+        Write-Log 'Web search: Tavily MCP will be configured in opencode.json.'
+    }
+    $mcpNote = if ($EnableWebSearch) { ', tavily (remote)' } else { '' }
+    Write-Log "MCP servers configured: git (uvx), memory (npx)$mcpNote"
+
+    $config = [ordered]@{
+        '$schema'   = 'https://opencode.ai/config.json'
+        share       = 'disabled'
+        autoupdate  = 'notify'
+        model       = "ollama/$TunedName"
+    }
+    if ($InstallFastModel) {
+        $config['small_model'] = "ollama/$FastTunedName"
+    }
+    $config['permission'] = [ordered]@{
+        edit     = 'allow'
+        bash     = 'ask'
+        webfetch = 'ask'
+    }
+    $config['provider'] = [ordered]@{
+        ollama = [ordered]@{
+            npm     = '@ai-sdk/openai-compatible'
+            name    = 'Ollama (local)'
+            options = [ordered]@{ baseURL = 'http://127.0.0.1:11434/v1' }
+            models  = $models
         }
     }
-    $owned['mcpServers'] = $mcpServers
+    $config['mcp'] = $mcp
 
-    $existing = [ordered]@{}
-    if (Test-Path -LiteralPath $settingsPath) {
-        Backup-QwenSettings $settingsPath $qwenDirectory
-        try {
-            $rawSettings = Get-Content -LiteralPath $settingsPath -Raw
-            $existing = ConvertTo-Hashtable ($rawSettings | ConvertFrom-Json)
-        }
-        catch {
-            Write-WarningLog "$settingsPath is not valid JSON; it was backed up and will be replaced."
-            $existing = [ordered]@{}
-        }
+    # Write the full config directly (this file is fully generated, not
+    # hand-edited) and atomically replace any previous version.
+    $json = $config | ConvertTo-Json -Depth 100
+    $tempConfigPath = Join-Path $script:TempDir 'opencode.json'
+    [IO.File]::WriteAllText($tempConfigPath, "$json`r`n", [Text.UTF8Encoding]::new($false))
+    try {
+        Get-Content -LiteralPath $tempConfigPath -Raw | ConvertFrom-Json | Out-Null
     }
+    catch {
+        throw "Generated opencode config is not valid JSON: $($_.Exception.Message)"
+    }
+    Move-Item -LiteralPath $tempConfigPath -Destination $configPath -Force
+    Write-Log "Wrote $configPath"
 
-    $preservedProviders = @()
-    if (
-        $existing.Contains('modelProviders') -and
-        $existing.modelProviders -is [Collections.IDictionary] -and
-        $existing.modelProviders.Contains('openai')
-    ) {
-        $preservedProviders = @($existing.modelProviders.openai | Where-Object {
-            $providerId = if ($_ -is [Collections.IDictionary]) { $_['id'] } else { $_.id }
-            $ownedIds -notcontains $providerId
-        })
-    }
+    # Personal, non-git-shared default instructions. Seeded once; re-running
+    # setup.ps1 never overwrites it so any personal notes added later survive.
+    $globalAgentsMd = Join-Path $openCodeDirectory 'AGENTS.md'
+    if (-not (Test-Path -LiteralPath $globalAgentsMd)) {
+        $agentsContent = @'
+# Personal defaults (local-coding-agent)
 
-    $merged = Merge-Hashtable $existing $owned
-    $merged.modelProviders.openai = @($preservedProviders) + @($providers)
-    $json = $merged | ConvertTo-Json -Depth 100
-    [IO.File]::WriteAllText($settingsPath, "$json`r`n", [Text.UTF8Encoding]::new($false))
-
-    $envPath = Join-Path $qwenDirectory '.env'
-    $envLines = if (Test-Path -LiteralPath $envPath) {
-        @(Get-Content -LiteralPath $envPath)
-    }
-    else {
-        @()
-    }
-    if (-not ($envLines | Where-Object { $_ -match '^OLLAMA_API_KEY=' })) {
-        Add-Content -LiteralPath $envPath -Value 'OLLAMA_API_KEY=ollama' -Encoding ASCII
-        Write-Log "Wrote OLLAMA_API_KEY to $envPath"
-    }
-
-    if ($EnableWebSearch) {
-        # Remove any existing entry, then append the (possibly updated) key.
-        $envLines = @(Get-Content -LiteralPath $envPath -ErrorAction SilentlyContinue) |
-            Where-Object { $_ -notmatch '^TAVILY_API_KEY=' }
-        [IO.File]::WriteAllLines($envPath, $envLines, [Text.UTF8Encoding]::new($false))
-        Add-Content -LiteralPath $envPath -Value "TAVILY_API_KEY=$TavilyApiKey" -Encoding ASCII
-        Write-Log "Wrote TAVILY_API_KEY to $envPath"
+- This is a fully local, offline setup (Ollama + OpenCode). Prefer the local
+  `git` and `memory` MCP tools over re-deriving the same information.
+- Do not add a "Co-authored-by" trailer to git commits unless explicitly asked.
+- Keep explanations concise; this is a terminal workflow.
+'@
+        [IO.File]::WriteAllText($globalAgentsMd, $agentsContent, [Text.UTF8Encoding]::new($false))
+        Write-Log "Wrote default global instructions to $globalAgentsMd"
     }
 }
+
 
 function Test-OpenAiModel([string]$Name) {
     $body = @{
@@ -546,11 +452,7 @@ try {
     }
     $script:OllamaExe = Get-OllamaExecutable
 
-    if ($InstallQwenCode -and -not (Test-Command 'rg.exe')) {
-        Install-WingetPackage 'BurntSushi.ripgrep.MSVC' 'ripgrep'
-    }
-
-    if ($InstallQwenCode) {
+    if ($InstallOpenCode) {
         if (-not (Test-Command 'git.exe')) {
             Install-WingetPackage 'Git.Git' 'Git'
         }
@@ -571,11 +473,11 @@ try {
         if (-not (Test-Command 'npm.cmd')) {
             throw 'npm was not found after installing Node.js. Open a new PowerShell window and rerun this script.'
         }
-        if (-not (Test-Command 'qwen.cmd')) {
-            Write-Log 'Installing Qwen Code CLI...'
-            & npm.cmd install -g '@qwen-code/qwen-code@latest'
+        if (-not (Test-Command 'opencode.cmd')) {
+            Write-Log 'Installing opencode CLI...'
+            & npm.cmd install -g 'opencode-ai@latest'
             if ($LASTEXITCODE -ne 0) {
-                throw 'npm failed to install Qwen Code CLI.'
+                throw 'npm failed to install opencode CLI.'
             }
             Refresh-Path
         }
@@ -627,8 +529,8 @@ try {
             -Presence $GeneralPresencePenalty
     }
 
-    if ($InstallQwenCode) {
-        Configure-QwenCode
+    if ($InstallOpenCode) {
+        Configure-OpenCode
     }
 
     $failedModels = [Collections.Generic.List[string]]::new()
@@ -669,7 +571,7 @@ try {
         }
     }
 
-    Write-Log 'Done. Start Qwen Code with: qwen'
+    Write-Log 'Done. Start OpenCode with: opencode'
 }
 catch {
     Write-Host ''

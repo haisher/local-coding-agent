@@ -1,11 +1,11 @@
 # local-coding-agent — Windows 11 (NVIDIA RTX)
 
 Windows profile of the local coding agent. For the project overview,
-architecture diagram, and shared concepts (Ollama, Qwen Code, tuned aliases,
+architecture diagram, and shared concepts (Ollama, OpenCode, tuned aliases,
 KV-cache tuning), see the [root README](../README.md).
 
 This profile targets **Windows 11 with an NVIDIA RTX GPU (~8 GB VRAM)**. The
-`qwen` CLI talks to models served by Ollama on the local IPv4 endpoint:
+`opencode` CLI talks to models served by Ollama on the local IPv4 endpoint:
 
 ```text
 http://127.0.0.1:11434
@@ -19,7 +19,7 @@ may resolve to IPv6 first.
 
 | Script | Purpose |
 |---|---|
-| `setup.ps1` | Installs dependencies, downloads selected models, creates tuned aliases, configures Qwen Code, validates inference, and preloads the default model. |
+| `setup.ps1` | Installs dependencies, downloads selected models, creates tuned aliases, configures OpenCode, validates inference, and preloads the default model. |
 | `start.ps1` | Starts the Ollama API. Pass `--warm` to load the default model into GPU memory for 30 minutes. |
 | `stop.ps1` | Stops Ollama and its inference processes, releasing RAM and VRAM. |
 | `cleanup.ps1` | Removes **all** local Ollama models so you can start fresh. Pass `--yes` to skip the confirmation. |
@@ -42,8 +42,7 @@ The scripts install these components when missing:
 - Ollama
 - Git
 - Node.js 22 or newer
-- Qwen Code CLI
-- ripgrep
+- OpenCode CLI
 
 The installer uses the community `winget` source rather than the Microsoft
 Store source.
@@ -86,7 +85,7 @@ Open PowerShell in this directory:
 Set-ExecutionPolicy -Scope Process Bypass
 .\setup.ps1
 .\detect-gpu.ps1
-qwen
+opencode
 ```
 
 For later sessions:
@@ -94,7 +93,7 @@ For later sessions:
 ```powershell
 Set-ExecutionPolicy -Scope Process Bypass
 .\start.ps1 --warm
-qwen
+opencode
 ```
 
 When finished:
@@ -130,7 +129,7 @@ $InstallGeneralModel = $true
 ```
 
 At least one model must be enabled. The first enabled model in the installer's
-default-selection order becomes Qwen Code's default model.
+default-selection order becomes OpenCode's default model.
 
 Keep `start.ps1` synchronized with the aliases you install:
 
@@ -151,8 +150,9 @@ Web search is disabled by default. To enable it:
    ```
 3. Re-run `.\setup.ps1`.
 
-The key is stored in `%USERPROFILE%\.qwen\.env`. `settings.json` uses a
-`${TAVILY_API_KEY}` placeholder that Qwen Code resolves at runtime.
+The key is embedded directly in the generated `mcp.tavily.url` inside
+`%USERPROFILE%\.config\opencode\opencode.json` — there is no separate `.env`
+file.
 
 **Privacy:** when the agent invokes `tavily_search`, that query is sent to
 Tavily's API (`api.tavily.com`). Everything else — model inference, code, file
@@ -169,52 +169,44 @@ Run:
 The script:
 
 1. Installs Ollama with `winget` if needed.
-2. Installs ripgrep for Qwen Code's file crawler.
-3. Installs Git for Qwen Code checkpointing.
-4. Installs Node.js 22 or newer.
-5. Installs `@qwen-code/qwen-code` globally with npm.
-6. Saves these user environment variables:
+2. Installs Git for OpenCode's local git MCP server.
+3. Installs Node.js 22 or newer.
+4. Installs `opencode-ai` globally with npm.
+5. Saves these user environment variables:
 
    ```text
    OLLAMA_FLASH_ATTENTION=1
    OLLAMA_KV_CACHE_TYPE=q8_0
    ```
 
-7. Starts the local Ollama API.
-8. Pulls each enabled base model.
-9. Creates tuned Ollama model aliases.
-10. Merges local Ollama providers into Qwen Code settings.
-11. Validates each enabled model through Ollama's OpenAI-compatible endpoint.
-12. Preloads the default model.
+6. Starts the local Ollama API.
+7. Pulls each enabled base model.
+8. Creates tuned Ollama model aliases.
+9. Regenerates OpenCode's config from scratch (`opencode.json`).
+10. Validates each enabled model through Ollama's OpenAI-compatible endpoint.
+11. Preloads the default model.
 
 The script accepts no runtime arguments. Change its configuration variables
 instead.
 
-### Qwen Code files
+### OpenCode files
 
 The installer manages:
 
 ```text
-C:\Users\<user>\.qwen\settings.json
-C:\Users\<user>\.qwen\.env
+C:\Users\<user>\.config\opencode\opencode.json
+C:\Users\<user>\.config\opencode\AGENTS.md
 ```
 
-It writes:
+No `OLLAMA_API_KEY` or `.env` file is needed — the local Ollama provider
+requires no API key at all.
 
-```text
-OLLAMA_API_KEY=ollama
-```
-
-This is a placeholder required by the OpenAI-compatible provider interface.
-It is not a cloud API key.
-
-Existing Qwen settings and unrelated providers are preserved. Before replacing
-an existing settings file, the installer creates timestamped backups and keeps
-the newest ten by default:
-
-```text
-settings.json.bak.<timestamp>
-```
+`setup.ps1` is the sole owner of `opencode.json`: it is fully regenerated from
+the script's configuration variables on every run (no merge, no backups
+needed), so re-running `setup.ps1` is always safe and idempotent.
+`AGENTS.md` is the one exception — it is seeded once with default personal
+instructions and never overwritten, so any notes you add there persist across
+runs.
 
 ## start.ps1
 
@@ -463,7 +455,7 @@ Run:
 ```
 
 An HTTP 500 during model loading is commonly caused by Windows Code Integrity
-blocking an Ollama DLL or runner, not by Qwen Code.
+blocking an Ollama DLL or runner, not by OpenCode.
 
 ### Model runs on CPU after a policy change
 
@@ -483,18 +475,17 @@ Enable its install flag in `setup.ps1`, then rerun:
 
 Already downloaded Ollama layers are reused.
 
-### Qwen Code stays on Initializing
+### git MCP tools fail or are unavailable
 
-The supplied settings enable Qwen Code checkpointing, which requires Git. If
-Qwen Code remains on `Initializing...`, confirm Git is available:
+OpenCode's local `git` MCP server (`mcp-server-git`, run via `uvx`) shells out
+to the `git` binary. If git-related tools error out, confirm Git is on PATH:
 
 ```powershell
 git --version
 ```
 
-If the command is not found, rerun `setup.ps1`. The installer adds Git
-when Qwen Code is enabled. As a temporary alternative, set
-`general.checkpointing.enabled` to `false` in `%USERPROFILE%\.qwen\settings.json`.
+If the command is not found, rerun `setup.ps1` — the installer installs Git
+automatically.
 
 ### Node.js is already installed
 
@@ -507,7 +498,7 @@ or newer. It will not reinstall a compatible version.
 Set-ExecutionPolicy -Scope Process Bypass
 .\start.ps1 --warm
 .\detect-gpu.ps1
-qwen
+opencode
 ```
 
 When the session is finished:

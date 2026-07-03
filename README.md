@@ -2,7 +2,7 @@
 
 A fully local, offline coding agent. **No cloud, no API keys, no telemetry.**
 
-It wires the [Qwen Code](https://github.com/QwenLM/qwen-code) CLI (`qwen`) to
+It wires the [OpenCode](https://opencode.ai) CLI (`opencode`) to
 local models served by [Ollama](https://ollama.com), so agentic coding — edits,
 shell commands, tool calls — runs entirely on your machine. Prompts, code, and
 model inference never leave `localhost`.
@@ -20,8 +20,8 @@ folder with scripts and a focused README:
 
 ```mermaid
 flowchart TB
-    you["You (terminal)"] --> qwen["qwen CLI<br/>(Qwen Code)"]
-    qwen -->|"OpenAI-compatible API<br/>localhost:11434/v1"| ollama["Ollama server"]
+    you["You (terminal)"] --> opencode["opencode CLI<br/>(OpenCode)"]
+    opencode -->|"OpenAI-compatible API<br/>localhost:11434/v1"| ollama["Ollama server"]
     ollama --> models["Tuned local model aliases<br/>(baked context + sampling)"]
     ollama --> hw["Local hardware<br/>Apple Silicon · NVIDIA RTX"]
 
@@ -38,7 +38,7 @@ flowchart TB
     ui -.-> ollama
 
     classDef local fill:#e7f5e7,stroke:#2e7d32,color:#1b1b1b;
-    class you,qwen,ollama,models,hw,scripts,ui,setup,macui,linuxui,winui local;
+    class you,opencode,ollama,models,hw,scripts,ui,setup,macui,linuxui,winui local;
 ```
 
 Everything in the green graph runs on your machine. The only network access is
@@ -49,11 +49,12 @@ during installation and the initial model downloads.
 - **Ollama** serves models locally and exposes an OpenAI-compatible endpoint at
   `http://localhost:11434/v1` (Windows uses the explicit IPv4 form
   `http://127.0.0.1:11434`).
-- **Qwen Code** (`qwen`) is the agentic CLI. It is pointed at the local Ollama
-  endpoint, so no cloud provider or API key is involved.
+- **OpenCode** (`opencode`) is the agentic CLI. It is pointed at the local
+  Ollama endpoint via a custom OpenAI-compatible provider, so no cloud
+  provider or API key is involved.
 - **Tuned model aliases.** Each setup pulls base models and creates local
   aliases (e.g. `qcoder`) with a baked-in context window and sampling profile.
-  Switch models from inside `qwen` with `/model`. `qcoder` is the default
+  Switch models from inside `opencode` with `/models`. `qcoder` is the default
   everywhere.
 - **Memory tuning.** Flash attention and a quantized `q8_0` KV cache are enabled
   so larger context windows fit in limited VRAM:
@@ -61,11 +62,13 @@ during installation and the initial model downloads.
   OLLAMA_FLASH_ATTENTION=1
   OLLAMA_KV_CACHE_TYPE=q8_0
   ```
-- **Qwen Code settings.** The installer writes `~/.qwen/settings.json`
-  (`%USERPROFILE%\.qwen\settings.json` on Windows) using `jq`-based deep merges
-  on Unix, preserving any existing MCP servers, hooks, and unrelated providers,
-  and keeping timestamped backups. An `OLLAMA_API_KEY=ollama` placeholder is
-  written to satisfy the OpenAI-compatible interface — it is **not** a cloud key.
+- **OpenCode config.** The installer fully regenerates
+  `~/.config/opencode/opencode.json` (same path on Windows, under
+  `%USERPROFILE%`) from scratch on every run — it is the sole owner of this
+  file, so re-running `setup` is always safe and idempotent. A one-time
+  personal `AGENTS.md` is seeded alongside it and is never overwritten. No
+  `OLLAMA_API_KEY` or `.env` file is needed — the local Ollama provider
+  requires no API key at all.
 
 ## Shared script pattern
 
@@ -74,10 +77,10 @@ Every platform exposes the same four core scripts (`.sh` on macOS/Linux,
 
 | Script    | Does |
 |-----------|------|
-| `setup`   | Installs Ollama, Qwen Code, and dependencies; pulls models; creates tuned aliases; writes Qwen Code settings; validates each model endpoint. |
+| `setup`   | Installs Ollama, OpenCode, and dependencies; pulls models; creates tuned aliases; writes `opencode.json`; validates each model endpoint. |
 | `start`   | Starts the Ollama server. `--warm` preloads the default model into memory. |
 | `stop`    | Stops Ollama and frees RAM/VRAM. |
-| `cleanup` | Removes **all** local Ollama models so you can start fresh (does not uninstall Ollama or Qwen Code). |
+| `cleanup` | Removes **all** local Ollama models so you can start fresh (does not uninstall Ollama or OpenCode). |
 
 Linux and Windows add a few platform-specific helpers (GPU driver install,
 GPU health/validation, desktop UI). See each folder's README.
@@ -109,7 +112,7 @@ differ:
 ```text
 setup            # one time: install + pull + configure
 start --warm     # start Ollama and preload the default model
-qwen             # run the agent inside your project
+opencode         # run the agent inside your project
 stop             # release RAM/VRAM when done
 ```
 
@@ -140,8 +143,8 @@ No configuration needed. Runs entirely on `localhost`.
 
 Powered by [`@modelcontextprotocol/server-memory`](https://github.com/modelcontextprotocol/servers/tree/main/src/memory)
 (run via `npx`). Stores entities, relations, and observations in
-`~/.qwen/mcp-memory.jsonl` and exposes them as queryable tools, giving the
-agent a structured long-term memory that survives across sessions.
+`~/.config/opencode/mcp-memory.jsonl` and exposes them as queryable tools,
+giving the agent a structured long-term memory that survives across sessions.
 
 No configuration needed. Runs entirely on `localhost`.
 
@@ -160,7 +163,8 @@ re-run `setup`:
 | 🪟 Windows | `windows/setup.ps1` | `$EnableWebSearch = $true` | `$TavilyApiKey = 'tvly-...'` |
 
 Get a free key at <https://app.tavily.com> (1 000 searches/month on the free
-tier). The key is stored in `~/.qwen/.env`, not in `settings.json`.
+tier). The key is embedded directly in the generated `mcp.tavily.url` inside
+`opencode.json` (chmod 600) — there is no separate `.env` file.
 
 **Privacy:** web search is the only feature that sends data outside
 `localhost`. When the agent calls `tavily_search`, the query is sent to
@@ -170,17 +174,18 @@ memory — stay on your machine. Disable at any time by setting
 
 ## Editor integration (optional)
 
-Prefer working inside your editor instead of the terminal? Install the official
-**[Qwen Code Companion](https://marketplace.visualstudio.com/items?itemName=qwenlm.qwen-code-vscode-ide-companion)**
-extension for VS Code (also works with Cursor, Windsurf, and other VS Code-based
-editors; also on [Open VSX](https://open-vsx.org/extension/qwenlm/qwen-code-vscode-ide-companion)).
+Prefer working inside your editor instead of the terminal? OpenCode has a
+built-in VS Code (and Cursor/Windsurf/VSCodium) integration that installs
+itself automatically — no marketplace step needed. Just open the integrated
+terminal in your editor and run `opencode`; the extension installs on first
+run.
 
-It adds a native Qwen Code chat panel, in-editor diff review with auto-accept,
-`@`-mentions for files/images, and multiple sessions — all driven by the same
-local Ollama models configured here. Because it runs the bundled Qwen Code with
-your local `~/.qwen/settings.json`, inference still stays entirely on
-`localhost`. Open it with the Qwen icon in the editor title bar or
-`Qwen Code: Open` from the Command Palette.
+It adds a native OpenCode panel, shares your current file selection as
+context, in-editor diff review, and file-reference shortcuts (`Cmd/Ctrl+Alt+K`)
+— all driven by the same local Ollama models configured here. Because it
+launches the same `opencode` CLI pointed at your local
+`~/.config/opencode/opencode.json`, inference still stays entirely on
+`localhost`. Quick-launch with `Cmd+Esc` / `Ctrl+Esc`.
 
 ## Requirements
 
@@ -193,13 +198,14 @@ your local `~/.qwen/settings.json`, inference still stays entirely on
   ~110 GB; the RTX profiles are much smaller)
 
 `setup` installs all runtime dependencies automatically, including Node.js,
-Qwen Code, `jq`, and `uv` (for `mcp-server-git`).
+OpenCode, `jq`, and `uv` (for `mcp-server-git`).
 
 ## Privacy
 
 After installation and model downloads, prompts, code, tool calls, and
 inference all stay on your machine via Ollama's local API. The two built-in MCP
 servers (`mcp-server-git`, `server-memory`) are local processes — no data
-leaves `localhost`. Qwen Code usage statistics are disabled in the generated
-settings. The only exception is the optional Tavily web search feature; see
+leaves `localhost`. OpenCode's `share` setting is disabled in the generated
+config (`opencode.json`), so sessions are never uploaded. The only exception
+is the optional Tavily web search feature; see
 [Tavily web search](#tavily-web-search-optional-disabled-by-default) above.

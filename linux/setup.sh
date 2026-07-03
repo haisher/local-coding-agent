@@ -56,22 +56,21 @@ GENERAL_REPEAT_PENALTY="1.0"
 GENERAL_PRESENCE_PENALTY="1.5"
 GENERAL_TUNED_NAME="general"
 
-INSTALL_QWEN_CODE="1"
+INSTALL_OPENCODE="1"
 TUNED_NAME="qcoder"
 
 # Optional: web search via Tavily MCP (disabled by default).
 # 1. Get a free API key at https://app.tavily.com (1 000 searches/month).
 # 2. Set ENABLE_WEB_SEARCH="1" and paste your key below.
 # 3. Re-run ./linux/setup.sh to apply.
-# Privacy: when the agent invokes tavily_search, the search query leaves your
-# machine and is sent to Tavily's API (api.tavily.com). Model inference, source
-# code, and all other tool calls stay on localhost. Disable at any time by
-# setting ENABLE_WEB_SEARCH="0" and re-running ./linux/setup.sh.
+# Privacy: when the agent invokes the Tavily MCP tool, the search query leaves
+# your machine and is sent to Tavily's API (api.tavily.com). Model inference,
+# source code, and all other tool calls stay on localhost. Disable at any time
+# by setting ENABLE_WEB_SEARCH="0" and re-running ./linux/setup.sh.
 ENABLE_WEB_SEARCH="0"
 TAVILY_API_KEY=""      # e.g. tvly-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 
 UPDATE_MODELS="0"          # re-pull model tags even if present
-MAX_SETTINGS_BACKUPS="10"  # cap settings.json backups
 
 API_URL="http://localhost:11434"
 OPENAI_URL="http://localhost:11434/v1/chat/completions"
@@ -120,20 +119,16 @@ else
   log "Ollama already installed."
 fi
 
-# jq is required to merge Qwen Code settings without clobbering user keys.
-if [[ "$INSTALL_QWEN_CODE" == "1" ]] && ! command -v jq >/dev/null 2>&1; then
+# jq is required to build and validate opencode.json.
+if [[ "$INSTALL_OPENCODE" == "1" ]] && ! command -v jq >/dev/null 2>&1; then
   log "Installing jq..."
   run_as_root apt-get update
   run_as_root apt-get install -y jq
 fi
 
-# ripgrep (rg) is used by Qwen Code's file crawler. Without it the crawler logs
-# "spawn rg ENOENT" and falls back to a slower scanner.
-if [[ "$INSTALL_QWEN_CODE" == "1" ]] && ! command -v rg >/dev/null 2>&1; then
-  log "Installing ripgrep..."
-  run_as_root apt-get update
-  run_as_root apt-get install -y ripgrep
-fi
+# Note: unlike Qwen Code, OpenCode bundles its own ripgrep binary internally
+# (packages/core/src/ripgrep.ts), so no separate system ripgrep install is
+# required for its file search tool.
 
 # Ensure systemd service has required environment variables
 if systemctl is-enabled ollama >/dev/null 2>&1; then
@@ -227,7 +222,7 @@ if [[ "$INSTALL_GENERAL_MODEL" == "1" ]]; then
     "$GENERAL_NUM_PREDICT" "$GENERAL_PRESENCE_PENALTY"
 fi
 
-if [[ "$INSTALL_QWEN_CODE" == "1" ]]; then
+if [[ "$INSTALL_OPENCODE" == "1" ]]; then
   if command -v node >/dev/null 2>&1; then
     NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)"
   else
@@ -246,13 +241,13 @@ if [[ "$INSTALL_QWEN_CODE" == "1" ]]; then
     run_as_root apt-get install -y nodejs
   fi
 
-  if ! command -v qwen >/dev/null 2>&1; then
-    log "Installing qwen CLI..."
+  if ! command -v opencode >/dev/null 2>&1; then
+    log "Installing opencode CLI..."
     NPM_PREFIX="$(npm prefix -g 2>/dev/null || echo /usr/local)"
     if [[ -w "$NPM_PREFIX" ]]; then
-      npm install -g @qwen-code/qwen-code@latest
+      npm install -g opencode-ai@latest
     else
-      run_as_root npm install -g @qwen-code/qwen-code@latest
+      run_as_root npm install -g opencode-ai@latest
     fi
   fi
 
@@ -263,172 +258,98 @@ if [[ "$INSTALL_QWEN_CODE" == "1" ]]; then
     export PATH="$HOME/.local/bin:$PATH"
   fi
 
-  QWEN_DIR="$HOME/.qwen"
-  QWEN_SETTINGS="$QWEN_DIR/settings.json"
-  mkdir -p "$QWEN_DIR"
+  OPENCODE_DIR="$HOME/.config/opencode"
+  OPENCODE_CONFIG="$OPENCODE_DIR/opencode.json"
+  mkdir -p "$OPENCODE_DIR"
 
-  provider_entry() {
-    local _id="$1" _base="$2" _ctx="$3"
-    local _gen_extra=""
-    [[ -n "${4:-}" ]] && _gen_extra=$',\n          '"$4"
-    cat <<EOF
-      {
-        "id": "$_id",
-        "name": "$_id (local Ollama)",
-        "baseUrl": "http://localhost:11434/v1",
-        "envKey": "OLLAMA_API_KEY",
-        "description": "$_base served locally via Ollama",
-        "generationConfig": {
-          "contextWindowSize": $_ctx,
-          "timeout": 300000$_gen_extra
-        }
-      }
-EOF
-  }
+  # This script is the sole owner of opencode.json (no manual-edit merging is
+  # needed/supported) — it is regenerated from the config variables above on
+  # every run, so re-running setup.sh is always idempotent and reproducible.
 
-  PROVIDER_LIST=()
-  OWNED_IDS=("$TUNED_NAME")
-  PROVIDER_LIST+=("$(provider_entry "$TUNED_NAME" "$MODEL" "$NUM_CTX")")
-  if [[ "$INSTALL_AGENTIC_MODEL" == "1" ]]; then
-    OWNED_IDS+=("$AGENTIC_TUNED_NAME")
-    PROVIDER_LIST+=("$(provider_entry "$AGENTIC_TUNED_NAME" "$AGENTIC_MODEL" "$AGENTIC_NUM_CTX")")
-  fi
-  if [[ "$INSTALL_GENERAL_MODEL" == "1" ]]; then
-    OWNED_IDS+=("$GENERAL_TUNED_NAME")
-    PROVIDER_LIST+=("$(provider_entry "$GENERAL_TUNED_NAME" "$GENERAL_MODEL" "$GENERAL_NUM_CTX")")
-  fi
-  if [[ "$INSTALL_FAST_MODEL" == "1" ]]; then
-    OWNED_IDS+=("$FAST_TUNED_NAME")
-    PROVIDER_LIST+=("$(provider_entry "$FAST_TUNED_NAME" "$FAST_MODEL" "$FAST_NUM_CTX")")
-  fi
-
-  PROVIDER_ENTRIES=""
-  for i in "${!PROVIDER_LIST[@]}"; do
-    (( i > 0 )) && PROVIDER_ENTRIES+=$',\n'
-    PROVIDER_ENTRIES+="${PROVIDER_LIST[$i]}"
-  done
-
-  OWNED_IDS_JSON="$(printf '%s\n' "${OWNED_IDS[@]}" | jq -R . | jq -sc .)"
-
-  FAST_MODEL_LINE=""
-  [[ "$INSTALL_FAST_MODEL" == "1" ]] && FAST_MODEL_LINE="  \"fastModel\": \"$FAST_TUNED_NAME\","
+  # --- Provider: a single "ollama" custom OpenAI-compatible provider exposing
+  # every tuned local alias this setup creates. ---
+  MODELS_JSON="$(jq -n \
+    --arg qcoder "$TUNED_NAME" \
+    --arg agentic "$AGENTIC_TUNED_NAME" \
+    --arg general "$GENERAL_TUNED_NAME" \
+    --arg fast "$FAST_TUNED_NAME" \
+    --argjson install_agentic "$([[ "$INSTALL_AGENTIC_MODEL" == "1" ]] && echo true || echo false)" \
+    --argjson install_general "$([[ "$INSTALL_GENERAL_MODEL" == "1" ]] && echo true || echo false)" \
+    --argjson install_fast "$([[ "$INSTALL_FAST_MODEL" == "1" ]] && echo true || echo false)" \
+    '
+    {($qcoder): {"name": ($qcoder + " (daily driver)")}}
+    + (if $install_agentic then {($agentic): {"name": ($agentic + " (tool calling)")}} else {} end)
+    + (if $install_general then {($general): {"name": ($general + " (general chat/reasoning)")}} else {} end)
+    + (if $install_fast then {($fast): {"name": ($fast + " (fast/background)")}} else {} end)
+    ')"
 
   # --- MCP servers: git and memory are always included; Tavily is optional ---
-  MEMORY_FILE_PATH="$HOME/.qwen/mcp-memory.jsonl"
-  MCP_SERVERS_JSON="$(jq -n --arg mem "$MEMORY_FILE_PATH" '{
-    "git":    {"command": "uvx", "args": ["mcp-server-git"]},
-    "memory": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"],
-               "env": {"MEMORY_FILE_PATH": $mem}}
+  MEMORY_FILE_PATH="$OPENCODE_DIR/mcp-memory.jsonl"
+  MCP_JSON="$(jq -n --arg mem "$MEMORY_FILE_PATH" '{
+    "git":    {"type": "local", "command": ["uvx", "mcp-server-git"], "enabled": true},
+    "memory": {"type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+               "environment": {"MEMORY_FILE_PATH": $mem}, "enabled": true}
   }')"
 
   if [[ "$ENABLE_WEB_SEARCH" == "1" ]]; then
     [[ -z "$TAVILY_API_KEY" ]] && fail "ENABLE_WEB_SEARCH is 1 but TAVILY_API_KEY is empty. Paste your key in the config section."
-    MCP_SERVERS_JSON="$(echo "$MCP_SERVERS_JSON" | jq '. + {
-      "tavily": {"httpUrl": "https://mcp.tavily.com/mcp/?tavilyApiKey=${TAVILY_API_KEY}"}
+    MCP_JSON="$(echo "$MCP_JSON" | jq --arg key "$TAVILY_API_KEY" '. + {
+      "tavily": {"type": "remote", "url": ("https://mcp.tavily.com/mcp/?tavilyApiKey=" + $key), "enabled": true}
     }')"
-    log "Web search: Tavily MCP will be configured in settings.json."
+    log "Web search: Tavily MCP will be configured in opencode.json."
   fi
-  log "MCP servers configured: git (uvx), memory (npx)${ENABLE_WEB_SEARCH:+, tavily (http)}"
+  log "MCP servers configured: git (uvx), memory (npx)${ENABLE_WEB_SEARCH:+, tavily (remote)}"
 
-  # Build only the keys this setup owns, then merge into any existing settings
-  # so MCP servers, hooks, and unrelated OpenAI providers are preserved.
-  OWNED_SETTINGS="$TMP_DIR/owned-settings.json"
-  cat >"$OWNED_SETTINGS" <<EOF
+  SMALL_MODEL_LINE=""
+  [[ "$INSTALL_FAST_MODEL" == "1" ]] && SMALL_MODEL_LINE="  \"small_model\": \"ollama/$FAST_TUNED_NAME\","
+
+  # Write the full config directly (this file is fully generated, not
+  # hand-edited) and atomically replace any previous version.
+  NEW_CONFIG="$TMP_DIR/opencode.json"
+  cat >"$NEW_CONFIG" <<EOF
 {
-  "mcpServers": $MCP_SERVERS_JSON,
-  "modelProviders": {
-    "openai": [
-$PROVIDER_ENTRIES
-    ]
+  "\$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
+  "autoupdate": "notify",
+  "model": "ollama/$TUNED_NAME",
+$SMALL_MODEL_LINE
+  "permission": {
+    "edit": "allow",
+    "bash": "ask",
+    "webfetch": "ask"
   },
-$FAST_MODEL_LINE
-  "security": {
-    "auth": {
-      "selectedType": "openai"
+  "provider": {
+    "ollama": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Ollama (local)",
+      "options": {
+        "baseURL": "http://localhost:11434/v1"
+      },
+      "models": $MODELS_JSON
     }
   },
-  "model": {
-    "name": "$TUNED_NAME",
-    "skipLoopDetection": false
-  },
-  "general": {
-    "showSessionRecap": true,
-    "checkpointing": {
-      "enabled": true
-    }
-  },
-  "memory": {
-    "enableManagedAutoDream": true
-  },
-  "tools": {
-    "approvalMode": "auto-edit",
-    "shell": {
-      "enableInteractiveShell": true,
-      "showColor": true
-    }
-  },
-  "privacy": {
-    "usageStatisticsEnabled": false
-  },
-  "ui": {
-    "shellOutputMaxLines": 300
-  }
+  "mcp": $MCP_JSON
 }
 EOF
 
-  jq empty "$OWNED_SETTINGS" || fail "Generated settings are not valid JSON."
+  jq empty "$NEW_CONFIG" || fail "Generated opencode config is not valid JSON."
+  mv "$NEW_CONFIG" "$OPENCODE_CONFIG"
+  chmod 600 "$OPENCODE_CONFIG"
+  log "Wrote $OPENCODE_CONFIG"
 
-  prune_settings_backups() {
-    local count=0 file
-    while IFS= read -r file; do
-      count=$((count + 1))
-      (( count > MAX_SETTINGS_BACKUPS )) && rm -f "$file"
-    done < <(ls -1t "$QWEN_DIR"/settings.json.bak.* 2>/dev/null)
-  }
+  # Personal, non-git-shared default instructions. Seeded once; re-running
+  # setup.sh never overwrites it so any personal notes added later survive.
+  GLOBAL_AGENTS_MD="$OPENCODE_DIR/AGENTS.md"
+  if [[ ! -f "$GLOBAL_AGENTS_MD" ]]; then
+    cat >"$GLOBAL_AGENTS_MD" <<'EOM'
+# Personal defaults (local-coding-agent)
 
-  MERGED_SETTINGS="$TMP_DIR/merged-settings.json"
-  if [[ -f "$QWEN_SETTINGS" ]] && jq empty "$QWEN_SETTINGS" >/dev/null 2>&1; then
-    cp "$QWEN_SETTINGS" "$QWEN_SETTINGS.bak.$(date +%Y%m%d%H%M%S)"
-    prune_settings_backups
-    # Deep-merge unrelated keys; replace only the provider entries we own,
-    # preserving any other OpenAI-compatible providers by ID.
-    jq -s --argjson owned_ids "$OWNED_IDS_JSON" '
-      .[0] as $existing | .[1] as $owned |
-      ($existing * $owned)
-      | .modelProviders.openai =
-          (
-            (
-              ($existing.modelProviders.openai // [])
-              | map(select(.id as $i | ($owned_ids | index($i)) | not))
-            )
-            + ($owned.modelProviders.openai // [])
-          )
-    ' "$QWEN_SETTINGS" "$OWNED_SETTINGS" >"$MERGED_SETTINGS" \
-      || fail "Failed to merge settings."
-  else
-    if [[ -f "$QWEN_SETTINGS" ]]; then
-      warn "$QWEN_SETTINGS is not valid JSON; backing up and replacing it."
-      cp "$QWEN_SETTINGS" "$QWEN_SETTINGS.bak.$(date +%Y%m%d%H%M%S)"
-      prune_settings_backups
-    fi
-    cp "$OWNED_SETTINGS" "$MERGED_SETTINGS"
-  fi
-  cp "$MERGED_SETTINGS" "$QWEN_SETTINGS"
-
-  QWEN_ENV="$QWEN_DIR/.env"
-  touch "$QWEN_ENV"
-  chmod 600 "$QWEN_ENV"
-  if ! grep -q '^OLLAMA_API_KEY=' "$QWEN_ENV" 2>/dev/null; then
-    echo 'OLLAMA_API_KEY=ollama' >> "$QWEN_ENV"
-    log "Wrote OLLAMA_API_KEY to $QWEN_ENV"
-  fi
-
-  if [[ "$ENABLE_WEB_SEARCH" == "1" ]]; then
-    # Remove any existing entry, then append the (possibly updated) key.
-    grep -v '^TAVILY_API_KEY=' "$QWEN_ENV" > "$TMP_DIR/env-stripped" 2>/dev/null || true
-    cat "$TMP_DIR/env-stripped" > "$QWEN_ENV"
-    echo "TAVILY_API_KEY=$TAVILY_API_KEY" >> "$QWEN_ENV"
-    log "Wrote TAVILY_API_KEY to $QWEN_ENV"
+- This is a fully local, offline setup (Ollama + OpenCode). Prefer the local
+  `git` and `memory` MCP tools over re-deriving the same information.
+- Do not add a "Co-authored-by" trailer to git commits unless explicitly asked.
+- Keep explanations concise; this is a terminal workflow.
+EOM
+    log "Wrote default global instructions to $GLOBAL_AGENTS_MD"
   fi
 fi
 

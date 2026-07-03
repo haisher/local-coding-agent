@@ -6,7 +6,7 @@ $ProgressPreference = 'SilentlyContinue'
 # =========================================================
 # cleanup.ps1 - remove ALL local Ollama models so
 # you can start fresh. Aliases and base models are deleted.
-# Does NOT uninstall Ollama or Qwen Code.
+# Does NOT uninstall Ollama or OpenCode.
 #
 # Usage:
 #   .\cleanup.ps1         # list models and confirm

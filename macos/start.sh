@@ -75,5 +75,5 @@ if [[ "${1:-}" == "--warm" ]]; then
     >/dev/null || fail "Preload failed for model '$TUNED_NAME'."
 fi
 
-log "Ready. Use qwen in your project."
+log "Ready. Use opencode in your project."
 log "Models: $TUNED_NAME (daily), $QUALITY_TUNED_NAME (quality), $VISION_TUNED_NAME (vision), $FAST_TUNED_NAME (fast), $GPTOSS_TUNED_NAME (second opinion)"

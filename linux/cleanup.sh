@@ -4,7 +4,7 @@ set -euo pipefail
 # =========================================================
 # cleanup.sh (Linux) — remove ALL local Ollama models so you
 # can start fresh. Aliases and base models alike are deleted.
-# Does NOT uninstall Ollama or Qwen Code; only removes models.
+# Does NOT uninstall Ollama or OpenCode; only removes models.
 #
 # Usage:
 #   ./linux/cleanup.sh         # lists models, asks for confirmation

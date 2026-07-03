@@ -1,21 +1,22 @@
 # local-coding-agent — macOS (Apple Silicon)
 
 macOS profile of the local coding agent. For the project overview, architecture
-diagram, and shared concepts (Ollama, Qwen Code, tuned aliases, KV-cache
+diagram, and shared concepts (Ollama, OpenCode, tuned aliases, KV-cache
 tuning), see the [root README](../README.md).
 
 This profile targets **Apple Silicon with ~64 GB unified memory**. It installs
 Ollama as the macOS app, pulls larger MLX-optimized models, and points the
-`qwen` CLI at the local Ollama endpoint.
+`opencode` CLI at the local Ollama endpoint.
 
 ## What gets installed
 
 - **Ollama** (macOS app via the `ollama-app` Homebrew cask, or the official
   installer)
-- **Qwen Code** CLI (`qwen`) + Node.js ≥ 22 if missing
-- **jq** (used to merge Qwen Code settings safely)
+- **OpenCode** CLI (`opencode`) + Node.js ≥ 22 if missing
+- **jq** (used to build and validate `opencode.json`)
 - The models below, each pulled and given a tuned local alias
-- `~/.qwen/settings.json` configured to use Ollama's OpenAI-compatible endpoint
+- `~/.config/opencode/opencode.json` configured to use Ollama's
+  OpenAI-compatible endpoint
 
 ## Models
 
@@ -27,7 +28,7 @@ Ollama as the macOS app, pulls larger MLX-optimized models, and points the
 | `qcoder-fast`    | `qwen3.5:4b`                    | 32 768  | Fast background tasks (thinking off) |
 | `gptoss`         | `gpt-oss:20b`                   | 65 536  | Independent second opinion |
 
-`qcoder` is the default; switch models from inside `qwen` with `/model`.
+`qcoder` is the default; switch models from inside `opencode` with `/models`.
 An optional `qcoder-speed` (`qwen3.6:35b-a3b-coding-nvfp4`) profile exists in
 `setup.sh` (off by default). The vision, quality, fast, and gpt-oss models can
 each be toggled via `INSTALL_*` flags near the top of `setup.sh`.
@@ -36,7 +37,7 @@ each be toggled via `INSTALL_*` flags near the top of `setup.sh`.
 
 | Script      | Does |
 |-------------|------|
-| `setup.sh`  | Installs Ollama/Qwen Code/jq, pulls models, creates aliases, writes `~/.qwen/settings.json`. Validates each model endpoint. |
+| `setup.sh`  | Installs Ollama/OpenCode/jq, pulls models, creates aliases, writes `~/.config/opencode/opencode.json`. Validates each model endpoint. |
 | `start.sh`  | Starts Ollama (prefers the macOS app). `--warm` preloads `qcoder`. |
 | `stop.sh`   | Stops Ollama (the app and any CLI `ollama serve`) and frees RAM. |
 | `cleanup.sh`| Removes all local Ollama models so you can start fresh. `--yes` skips the prompt. |
@@ -50,7 +51,7 @@ contexts, install toggles). No runtime flags except `--warm` on `start.sh`.
 cd local-coding-agent/macos
 ./setup.sh
 ./start.sh --warm        # optional warm-up
-cd <your-project> && qwen
+cd <your-project> && opencode
 ./stop.sh                # when done
 ```
 
@@ -82,8 +83,9 @@ Web search is disabled by default. To enable it:
    ```
 3. Re-run `./setup.sh`.
 
-The key is stored in `~/.qwen/.env` (chmod 600). `settings.json` uses a
-`${TAVILY_API_KEY}` placeholder that Qwen Code resolves at runtime.
+The key is embedded directly in the generated `mcp.tavily.url` inside
+`~/.config/opencode/opencode.json` (chmod 600) — there is no separate `.env`
+file.
 
 **Privacy:** when the agent invokes `tavily_search`, that query is sent to
 Tavily's API (`api.tavily.com`). Everything else — model inference, code, file
