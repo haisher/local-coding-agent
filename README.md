@@ -12,9 +12,9 @@ folder with scripts and a focused README:
 
 | Platform | Folder | Target hardware |
 |----------|--------|-----------------|
-| 🍎 macOS    | [`macos/`](macos/README.md)     | Apple Silicon (tuned for 64 GB) |
-| 🐧 Linux    | [`linux/`](linux/README.md)     | Debian/Ubuntu + NVIDIA RTX (~8 GB VRAM) |
-| 🪟 Windows  | [`windows/`](windows/README.md) | Windows 11 + NVIDIA RTX (~8 GB VRAM) |
+| macOS    | [`macos/`](macos/README.md)     | Apple Silicon (tuned for 64 GB) |
+| Linux    | [`linux/`](linux/README.md)     | Debian/Ubuntu + NVIDIA RTX (~8 GB VRAM) |
+| Windows  | [`windows/`](windows/README.md) | Windows 11 + NVIDIA RTX (~8 GB VRAM) |
 
 ## How it works
 
@@ -92,8 +92,8 @@ contexts, install toggles). The only runtime flag is `--warm` on `start`.
 
 | Alias            | macOS (Apple Silicon) | Linux / Windows (RTX 8 GB) | Purpose |
 |------------------|-----------------------|----------------------------|---------|
-| `qcoder` (default) | `qwen3.6:35b-a3b-coding-mxfp8` | `qwen3-coder:8b` | Daily coding driver |
-| `qcoder-fast`    | `qwen3.5:4b`          | `qwen3-coder:4b`         | Fast/background tasks |
+| `qcoder` (default) | `qwen3.6:35b-a3b-coding-mxfp8` | `qwen2.5-coder:7b` | Daily coding driver |
+| `qcoder-fast`    | `qwen3.5:4b`          | `qwen2.5-coder:3b`         | Fast/background tasks |
 | `qcoder-quality` | `qwen3.6:27b-coding-mxfp8` | —                     | Hard bugs / big refactors (macOS) |
 | `qcoder-vision`  | `qwen3.6:35b-a3b`     | —                          | Image input (macOS) |
 | `gptoss`         | `gpt-oss:20b`         | —                          | Independent second opinion (macOS) |
@@ -118,9 +118,9 @@ stop             # release RAM/VRAM when done
 
 Platform-specific quick starts:
 
-- 🍎 **macOS** → [`macos/README.md`](macos/README.md)
-- 🐧 **Linux** → [`linux/README.md`](linux/README.md)
-- 🪟 **Windows** → [`windows/README.md`](windows/README.md)
+- **macOS** → [`macos/README.md`](macos/README.md)
+- **Linux** → [`linux/README.md`](linux/README.md)
+- **Windows** → [`windows/README.md`](windows/README.md)
 
 ## MCP servers
 
@@ -158,9 +158,9 @@ re-run `setup`:
 
 | Platform | Script | Enable flag | API key variable |
 |---|---|---|---|
-| 🍎 macOS | `macos/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
-| 🐧 Linux | `linux/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
-| 🪟 Windows | `windows/setup.ps1` | `$EnableWebSearch = $true` | `$TavilyApiKey = 'tvly-...'` |
+| macOS | `macos/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
+| Linux | `linux/setup.sh` | `ENABLE_WEB_SEARCH="1"` | `TAVILY_API_KEY="tvly-..."` |
+| Windows | `windows/setup.ps1` | `$EnableWebSearch = $true` | `$TavilyApiKey = 'tvly-...'` |
 
 Get a free key at <https://app.tavily.com> (1 000 searches/month on the free
 tier). The key is embedded directly in the generated `mcp.tavily.url` inside

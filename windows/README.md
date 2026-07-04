@@ -114,8 +114,8 @@ The installer can create these tuned aliases:
 
 | Install flag | Alias | Base model | Context | Purpose |
 |---|---|---|---:|---|
-| `$InstallModel` | `qcoder` | `qwen3-coder:8b` | 24,576 | Coding and code review |
-| `$InstallFastModel` | `qcoder-fast` | `qwen3-coder:4b` | 32,768 | Faster, smaller coding tasks |
+| `$InstallModel` | `qcoder` | `qwen2.5-coder:7b` | 24,576 | Coding and code review |
+| `$InstallFastModel` | `qcoder-fast` | `qwen2.5-coder:3b` | 32,768 | Faster, smaller coding tasks |
 | `$InstallAgenticModel` | `agentic` | `granite4:7b-a1b-h` | 32,768 | Deterministic tool calling |
 | `$InstallGeneralModel` | `general` | `qwen3.5:4b` | 32,768 | General chat, reasoning, and coding |
 
