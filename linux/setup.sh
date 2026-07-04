@@ -4,7 +4,11 @@ set -euo pipefail
 # =========================
 # Configuration (edit here)
 # =========================
-MODEL="qwen2.5-coder:7b"
+# qwen3-coder:8b (Qwen3-Coder, dense): successor to qwen2.5-coder, native
+# 256K context (capped below for VRAM), agentic/tool-calling function-call
+# format. Sampling follows Qwen's official Qwen3-Coder best practices:
+# temperature=0.7, top_p=0.8, top_k=20, repetition_penalty=1.05.
+MODEL="qwen3-coder:8b"
 NUM_CTX="24576"
 NUM_PREDICT="4096"
 OLLAMA_FLASH_ATTENTION="1"
@@ -12,10 +16,10 @@ OLLAMA_KV_CACHE_TYPE="q8_0"
 TEMPERATURE="0.7"
 TOP_P="0.8"
 TOP_K="20"
-REPEAT_PENALTY="1.1"
+REPEAT_PENALTY="1.05"
 
 INSTALL_FAST_MODEL="1"
-FAST_MODEL="qwen2.5-coder:3b"
+FAST_MODEL="qwen3-coder:4b"
 FAST_NUM_CTX="32768"
 FAST_NUM_PREDICT="4096"
 FAST_REPEAT_PENALTY="1.05"

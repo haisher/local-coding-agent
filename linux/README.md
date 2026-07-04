@@ -24,10 +24,10 @@ Ollama runs as a `systemd` service and models are kept ≤ 7B so weights plus a
 
 | Alias         | Base model            | Context | Purpose |
 |---------------|-----------------------|---------|---------|
-| `qcoder`      | `qwen2.5-coder:7b`    | 24 576  | Daily driver / code review |
+| `qcoder`      | `qwen3-coder:8b`      | 24 576  | Daily driver / code review |
 | `agentic`     | `granite4:7b-a1b-h`   | 32 768  | Tool-calling / agentic (Granite 4 hybrid MoE, ~1B active, greedy decoding) |
 | `general`     | `qwen3.5:4b`          | 32 768  | General-purpose chat / reasoning (Qwen3.5, hybrid DeltaNet + MoE) |
-| `qcoder-fast` | `qwen2.5-coder:3b`    | 32 768  | Fast autocomplete / simple tasks |
+| `qcoder-fast` | `qwen3-coder:4b`      | 32 768  | Fast autocomplete / simple tasks |
 
 `qcoder` is the default; switch models from inside `opencode` with `/models`.
 A `q8_0` KV cache + flash attention keep all models within 8 GB. Each model can

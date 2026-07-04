@@ -8,8 +8,12 @@ $ProgressPreference = 'SilentlyContinue'
 # =========================
 # Configuration (edit here)
 # =========================
+# qwen3-coder:8b (Qwen3-Coder, dense): successor to qwen2.5-coder, native
+# 256K context (capped below for VRAM), agentic/tool-calling function-call
+# format. Sampling follows Qwen's official Qwen3-Coder best practices:
+# temperature=0.7, top_p=0.8, top_k=20, repetition_penalty=1.05.
 $InstallModel = $true
-$Model = 'qwen2.5-coder:7b'
+$Model = 'qwen3-coder:8b'
 $NumCtx = 24576
 $NumPredict = 4096
 $OllamaFlashAttention = '1'
@@ -17,10 +21,10 @@ $OllamaKvCacheType = 'q8_0'
 $Temperature = 0.7
 $TopP = 0.8
 $TopK = 20
-$RepeatPenalty = 1.1
+$RepeatPenalty = 1.05
 
 $InstallFastModel = $true
-$FastModel = 'qwen2.5-coder:3b'
+$FastModel = 'qwen3-coder:4b'
 $FastNumCtx = 32768
 $FastNumPredict = 4096
 $FastRepeatPenalty = 1.05

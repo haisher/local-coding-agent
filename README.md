@@ -92,8 +92,8 @@ contexts, install toggles). The only runtime flag is `--warm` on `start`.
 
 | Alias            | macOS (Apple Silicon) | Linux / Windows (RTX 8 GB) | Purpose |
 |------------------|-----------------------|----------------------------|---------|
-| `qcoder` (default) | `qwen3.6:35b-a3b-coding-mxfp8` | `qwen2.5-coder:7b` | Daily coding driver |
-| `qcoder-fast`    | `qwen3.5:4b`          | `qwen2.5-coder:3b`         | Fast/background tasks |
+| `qcoder` (default) | `qwen3.6:35b-a3b-coding-mxfp8` | `qwen3-coder:8b` | Daily coding driver |
+| `qcoder-fast`    | `qwen3.5:4b`          | `qwen3-coder:4b`         | Fast/background tasks |
 | `qcoder-quality` | `qwen3.6:27b-coding-mxfp8` | —                     | Hard bugs / big refactors (macOS) |
 | `qcoder-vision`  | `qwen3.6:35b-a3b`     | —                          | Image input (macOS) |
 | `gptoss`         | `gpt-oss:20b`         | —                          | Independent second opinion (macOS) |
