@@ -8,29 +8,30 @@ $ProgressPreference = 'SilentlyContinue'
 # =========================
 # Configuration (edit here)
 # =========================
-# qwen2.5-coder:7b (dense): purpose-built code model, the best fit for 8GB
-# VRAM GPUs (~5-6GB resident, fully GPU-offloaded). Note: qwen3-coder has no
-# small dense release (only 30b/480b MoE), so it doesn't fit this hardware
-# tier. Native context is 32768 (32K); capped below for VRAM headroom.
-# Sampling matches Qwen's official Qwen2.5-Coder-7B-Instruct
-# generation_config.json: temperature=0.7, top_p=0.8, top_k=20,
-# repetition_penalty=1.1.
+# qwen3:8b (dense): current-generation Qwen3 8B, the best fit for 8GB VRAM
+# GPUs (~5.5GB at Q4_K_M, fully GPU-offloaded).
+# Qwen3-Coder-Next (80B MoE) needs 37–47 GB VRAM and does not fit this tier.
+# Native context is 32768 (32K); matches GPU headroom exactly at q8_0 KV cache.
+# Sampling for non-thinking mode per Qwen3 official docs: temperature=0.7,
+# top_p=0.8, top_k=20, repeat_penalty=1.0. presence_penalty=1.5 curbs repetition.
 $InstallModel = $true
-$Model = 'qwen2.5-coder:7b'
-$NumCtx = 24576
+$Model = 'qwen3:8b'
+$NumCtx = 32768
 $NumPredict = 4096
 $OllamaFlashAttention = '1'
 $OllamaKvCacheType = 'q8_0'
 $Temperature = 0.7
 $TopP = 0.8
 $TopK = 20
-$RepeatPenalty = 1.1
+$RepeatPenalty = 1.0
+$PresencePenalty = 1.5
 
 $InstallFastModel = $true
-$FastModel = 'qwen2.5-coder:3b'
+$FastModel = 'qwen3:3b'
 $FastNumCtx = 32768
 $FastNumPredict = 4096
-$FastRepeatPenalty = 1.05
+$FastRepeatPenalty = 1.0
+$FastPresencePenalty = 1.5
 $FastTunedName = 'qcoder-fast'
 
 $InstallAgenticModel = $true
@@ -518,11 +519,13 @@ try {
     Assert-OllamaInferenceAllowed $script:OllamaExe
 
     if ($InstallModel) {
-        New-TunedModel -Base $Model -Tuned $TunedName -Context $NumCtx
+        New-TunedModel -Base $Model -Tuned $TunedName -Context $NumCtx `
+            -Presence $PresencePenalty
     }
     if ($InstallFastModel) {
         New-TunedModel -Base $FastModel -Tuned $FastTunedName -Context $FastNumCtx `
-            -Repeat $FastRepeatPenalty -Predict $FastNumPredict
+            -Repeat $FastRepeatPenalty -Predict $FastNumPredict `
+            -Presence $FastPresencePenalty
     }
     if ($InstallAgenticModel) {
         New-TunedModel -Base $AgenticModel -Tuned $AgenticTunedName -Context $AgenticNumCtx `

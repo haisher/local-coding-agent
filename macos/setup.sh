@@ -4,10 +4,9 @@ set -euo pipefail
 # =========================
 # Configuration (edit here)
 # =========================
-# Daily driver: Apple-optimized MLX 8-bit build of the 35B-A3B MoE.
-# On a 64 GB Mac this trades some throughput for fidelity while staying fast
-# (only ~3B params are active per token). MLX coding tags are text-only.
-MODEL="qwen3.6:35b-a3b-coding-mxfp8"
+# Daily driver: Qwen3.8 27B dense, Apple-optimized MLX build.
+# The 27B dense runs fully in 64 GB unified memory with strong throughput.
+MODEL="qwen3.8:27b-mlx"
 NUM_CTX="65536"
 OLLAMA_FLASH_ATTENTION="1"
 OLLAMA_KV_CACHE_TYPE="q8_0"
@@ -33,10 +32,11 @@ VISION_MODEL="qwen3.6:35b-a3b"
 VISION_NUM_CTX="65536"
 VISION_TUNED_NAME="qcoder-vision"
 
-# Quality tier: dense 27B (MLX 8-bit). Stronger on hard bugs / big refactors,
-# slower to decode. Switch to it on demand from OpenCode.
+# Quality tier: Qwen3.8 27B full-precision (non-MLX). Slightly slower than the
+# daily MLX build but potentially higher accuracy for hard bugs / big refactors.
+# Switch to it on demand from OpenCode.
 INSTALL_QUALITY_MODEL="1"
-QUALITY_MODEL="qwen3.6:27b-coding-mxfp8"
+QUALITY_MODEL="qwen3.8:27b"
 QUALITY_NUM_CTX="65536"
 QUALITY_TUNED_NAME="qcoder-quality"
 

@@ -4,28 +4,29 @@ set -euo pipefail
 # =========================
 # Configuration (edit here)
 # =========================
-# qwen2.5-coder:7b (dense): purpose-built code model, the best fit for 8GB
-# VRAM GPUs (~5-6GB resident, fully GPU-offloaded). Note: qwen3-coder has no
-# small dense release (only 30b/480b MoE), so it doesn't fit this hardware
-# tier. Native context is 32768 (32K); capped below for VRAM headroom.
-# Sampling matches Qwen's official Qwen2.5-Coder-7B-Instruct
-# generation_config.json: temperature=0.7, top_p=0.8, top_k=20,
-# repetition_penalty=1.1.
-MODEL="qwen2.5-coder:7b"
-NUM_CTX="24576"
+# qwen3:8b (dense): current-generation Qwen3 8B, the best fit for 8GB VRAM
+# GPUs (~5.5GB at Q4_K_M, fully GPU-offloaded).
+# Qwen3-Coder-Next (80B MoE) needs 37–47 GB VRAM and does not fit this tier.
+# Native context is 32768 (32K); matches GPU headroom exactly at q8_0 KV cache.
+# Sampling for non-thinking mode per Qwen3 official docs: temperature=0.7,
+# top_p=0.8, top_k=20, repeat_penalty=1.0. presence_penalty=1.5 curbs repetition.
+MODEL="qwen3:8b"
+NUM_CTX="32768"
 NUM_PREDICT="4096"
 OLLAMA_FLASH_ATTENTION="1"
 OLLAMA_KV_CACHE_TYPE="q8_0"
 TEMPERATURE="0.7"
 TOP_P="0.8"
 TOP_K="20"
-REPEAT_PENALTY="1.1"
+REPEAT_PENALTY="1.0"
+PRESENCE_PENALTY="1.5"
 
 INSTALL_FAST_MODEL="1"
-FAST_MODEL="qwen2.5-coder:3b"
+FAST_MODEL="qwen3:3b"
 FAST_NUM_CTX="32768"
 FAST_NUM_PREDICT="4096"
-FAST_REPEAT_PENALTY="1.05"
+FAST_REPEAT_PENALTY="1.0"
+FAST_PRESENCE_PENALTY="1.5"
 FAST_TUNED_NAME="qcoder-fast"
 
 # Agentic / tool-calling model. granite4:7b-a1b-h (IBM Granite 4 "tiny-h"):
@@ -210,11 +211,12 @@ preload_model() {
 }
 
 start_server
-pull_and_tune "$MODEL" "$TUNED_NAME" "$NUM_CTX"
+pull_and_tune "$MODEL" "$TUNED_NAME" "$NUM_CTX" "$REPEAT_PENALTY" \
+  "$TEMPERATURE" "$TOP_P" "$TOP_K" "$NUM_PREDICT" "$PRESENCE_PENALTY"
 
 if [[ "$INSTALL_FAST_MODEL" == "1" ]]; then
   pull_and_tune "$FAST_MODEL" "$FAST_TUNED_NAME" "$FAST_NUM_CTX" "$FAST_REPEAT_PENALTY" \
-    "$TEMPERATURE" "$TOP_P" "$TOP_K" "$FAST_NUM_PREDICT"
+    "$TEMPERATURE" "$TOP_P" "$TOP_K" "$FAST_NUM_PREDICT" "$FAST_PRESENCE_PENALTY"
 fi
 
 if [[ "$INSTALL_AGENTIC_MODEL" == "1" ]]; then

@@ -92,16 +92,16 @@ contexts, install toggles). The only runtime flag is `--warm` on `start`.
 
 | Alias            | macOS (Apple Silicon) | Linux / Windows (RTX 8 GB) | Purpose |
 |------------------|-----------------------|----------------------------|---------|
-| `qcoder` (default) | `qwen3.6:35b-a3b-coding-mxfp8` | `qwen2.5-coder:7b` | Daily coding driver |
-| `qcoder-fast`    | `qwen3.5:4b`          | `qwen2.5-coder:3b`         | Fast/background tasks |
-| `qcoder-quality` | `qwen3.6:27b-coding-mxfp8` | —                     | Hard bugs / big refactors (macOS) |
+| `qcoder` (default) | `qwen3.8:27b-mlx`     | `qwen3:8b`                 | Daily coding driver |
+| `qcoder-fast`    | `qwen3.5:4b`          | `qwen3:3b`                 | Fast/background tasks |
+| `qcoder-quality` | `qwen3.8:27b`         | —                          | Hard bugs / big refactors (macOS) |
 | `qcoder-vision`  | `qwen3.6:35b-a3b`     | —                          | Image input (macOS) |
 | `gptoss`         | `gpt-oss:20b`         | —                          | Independent second opinion (macOS) |
 | `agentic`        | —                     | `granite4:7b-a1b-h`        | Deterministic tool calling (Linux/Windows) |
 | `general`        | —                     | `qwen3.5:4b`               | General chat / reasoning (Linux/Windows) |
 
 Larger macOS models exploit Apple Silicon unified memory; the RTX profiles keep
-models ≤ 7B so weights plus KV cache fit in ~8 GB VRAM. Exact aliases and
+models ≤ 8B so weights plus KV cache fit in ~8 GB VRAM. Exact aliases and
 defaults are documented in each platform README.
 
 ## Typical workflow
@@ -195,7 +195,7 @@ launches the same `opencode` CLI pointed at your local
 - A supported GPU/accelerator: Apple Silicon, or an NVIDIA RTX GPU (~8 GB VRAM)
   on Linux/Windows
 - Enough disk for Ollama plus the selected models (a clean macOS model set needs
-  ~110 GB; the RTX profiles are much smaller)
+  ~90 GB; the RTX profiles are much smaller)
 
 `setup` installs all runtime dependencies automatically, including Node.js,
 OpenCode, `jq`, and `uv` (for `mcp-server-git`).

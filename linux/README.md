@@ -5,7 +5,7 @@ diagram, and shared concepts (Ollama, OpenCode, tuned aliases, KV-cache
 tuning), see the [root README](../README.md).
 
 This profile is tuned for a single **NVIDIA RTX (8 GB VRAM)** on Debian/Ubuntu.
-Ollama runs as a `systemd` service and models are kept ≤ 7B so weights plus a
+Ollama runs as a `systemd` service and models are kept ≤ 8B so weights plus a
 `q8_0` KV cache fit in 8 GB.
 
 ## What gets installed
@@ -24,10 +24,10 @@ Ollama runs as a `systemd` service and models are kept ≤ 7B so weights plus a
 
 | Alias         | Base model            | Context | Purpose |
 |---------------|-----------------------|---------|---------|
-| `qcoder`      | `qwen2.5-coder:7b`    | 24 576  | Daily driver / code review |
+| `qcoder`      | `qwen3:8b`            | 32 768  | Daily driver / code review |
 | `agentic`     | `granite4:7b-a1b-h`   | 32 768  | Tool-calling / agentic (Granite 4 hybrid MoE, ~1B active, greedy decoding) |
 | `general`     | `qwen3.5:4b`          | 32 768  | General-purpose chat / reasoning (Qwen3.5, hybrid DeltaNet + MoE) |
-| `qcoder-fast` | `qwen2.5-coder:3b`    | 32 768  | Fast autocomplete / simple tasks |
+| `qcoder-fast` | `qwen3:3b`            | 32 768  | Fast autocomplete / simple tasks |
 
 `qcoder` is the default; switch models from inside `opencode` with `/models`.
 A `q8_0` KV cache + flash attention keep all models within 8 GB. Each model can

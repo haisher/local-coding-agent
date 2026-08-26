@@ -22,8 +22,8 @@ Ollama as the macOS app, pulls larger MLX-optimized models, and points the
 
 | Alias            | Base model                      | Context | Purpose |
 |------------------|---------------------------------|---------|---------|
-| `qcoder`         | `qwen3.6:35b-a3b-coding-mxfp8`  | 65 536  | Daily driver (MoE, MLX 8-bit) |
-| `qcoder-quality` | `qwen3.6:27b-coding-mxfp8`      | 65 536  | Hard bugs / large refactors (dense) |
+| `qcoder`         | `qwen3.8:27b-mlx`               | 65 536  | Daily driver (dense, MLX) |
+| `qcoder-quality` | `qwen3.8:27b`                   | 65 536  | Hard bugs / large refactors (full precision) |
 | `qcoder-vision`  | `qwen3.6:35b-a3b`               | 65 536  | Image input (MLX coding builds are text-only) |
 | `qcoder-fast`    | `qwen3.5:4b`                    | 32 768  | Fast background tasks (thinking off) |
 | `gptoss`         | `gpt-oss:20b`                   | 65 536  | Independent second opinion |
@@ -96,5 +96,5 @@ contents — stays on `localhost`.
 - macOS on Apple Silicon (arm64 recommended)
 - Internet access, `curl`, and `sudo` for installs
 - [Homebrew](https://brew.sh) recommended (used to install Ollama, jq, Node.js)
-- Disk: a clean model install needs ~110 GB (less if Ollama shares blobs);
+- Disk: a clean model install needs ~90 GB (less if Ollama shares blobs);
   `setup.sh` warns below ~140 GB free
